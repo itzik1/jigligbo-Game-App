@@ -1,0 +1,169 @@
+// Physics Engine for Jigligbo
+// Handles movement, collision, and platform interactions
+
+import { Platform, Player, Vector2D, GameConfig } from './types';
+import { DEFAULT_CONFIG } from './constants';
+
+// Update player physics
+export function updatePlayerPhysics(
+  player: Player,
+  gravity: number,
+  config: GameConfig = DEFAULT_CONFIG
+): Player {
+  if (player.isDead) return player;
+  
+  const newVelocity: Vector2D = {
+    x: player.velocity.x * 0.92, // Friction
+    y: Math.min(player.velocity.y + gravity, config.maxFallSpeed),
+  };
+  
+  const newPosition: Vector2D = {
+    x: player.position.x + newVelocity.x,
+    y: player.position.y + newVelocity.y,
+  };
+  
+  // Keep player in bounds horizontally
+  const halfSize = config.playerSize / 2;
+  if (newPosition.x < halfSize) {
+    newPosition.x = halfSize;
+    newVelocity.x = 0;
+  } else if (newPosition.x > config.gameWidth - halfSize) {
+    newPosition.x = config.gameWidth - halfSize;
+    newVelocity.x = 0;
+  }
+  
+  return {
+    ...player,
+    position: newPosition,
+    velocity: newVelocity,
+    isGrounded: false,
+  };
+}
+
+// Apply jump to player
+export function applyJump(player: Player, jumpForce: number): Player {
+  return {
+    ...player,
+    velocity: { ...player.velocity, y: jumpForce },
+    isJumping: true,
+    isGrounded: false,
+    jumpCount: player.jumpCount + 1,
+  };
+}
+
+// Apply horizontal movement
+export function applyMovement(player: Player, direction: number, speed: number = 5): Player {
+  return {
+    ...player,
+    velocity: {
+      ...player.velocity,
+      x: player.velocity.x + direction * speed,
+    },
+  };
+}
+
+// Check collision between player and platform
+export function checkPlatformCollision(
+  player: Player,
+  platform: Platform,
+  previousY: number,
+  config: GameConfig = DEFAULT_CONFIG
+): { collided: boolean; landedOn: boolean } {
+  if (!platform.isSolid) return { collided: false, landedOn: false };
+  
+  const playerBottom = player.position.y + config.playerSize / 2;
+  const playerTop = player.position.y - config.playerSize / 2;
+  const playerLeft = player.position.x - config.playerSize / 2;
+  const playerRight = player.position.x + config.playerSize / 2;
+  
+  const previousBottom = previousY + config.playerSize / 2;
+  
+  const platTop = platform.position.y;
+  const platBottom = platform.position.y + platform.height;
+  const platLeft = platform.position.x;
+  const platRight = platform.position.x + platform.width;
+  
+  // Check if player overlaps platform horizontally
+  const horizontalOverlap = playerRight > platLeft && playerLeft < platRight;
+  
+  // Check if player is landing on platform:
+  // - Was above or at platform surface in previous frame
+  // - Is now at or below platform surface
+  // - Moving downward or stationary
+  const wasAbovePlatform = previousBottom <= platTop + 2;
+  const isAtPlatformSurface = playerBottom >= platTop && playerBottom <= platTop + 15;
+  const isMovingDown = player.velocity.y >= 0;
+  
+  const isLanding = horizontalOverlap && wasAbovePlatform && isAtPlatformSurface && isMovingDown;
+  
+  return {
+    collided: horizontalOverlap && playerBottom > platTop && playerTop < platBottom,
+    landedOn: isLanding,
+  };
+}
+
+// Check all platform collisions and resolve
+export function resolveCollisions(
+  player: Player,
+  platforms: Platform[],
+  previousY: number,
+  config: GameConfig = DEFAULT_CONFIG
+): { player: Player; landedPlatform: Platform | null } {
+  let landedPlatform: Platform | null = null;
+  let resolvedPlayer = { ...player };
+  
+  for (const platform of platforms) {
+    const { collided, landedOn } = checkPlatformCollision(resolvedPlayer, platform, previousY, config);
+    
+    if (landedOn && platform.isSolid) {
+      // Land on platform
+      resolvedPlayer = {
+        ...resolvedPlayer,
+        position: {
+          ...resolvedPlayer.position,
+          y: platform.position.y - config.playerSize / 2,
+        },
+        velocity: { ...resolvedPlayer.velocity, y: 0 },
+        isGrounded: true,
+        isJumping: false,
+        jumpCount: 0,
+      };
+      landedPlatform = platform;
+      break;
+    }
+  }
+  
+  return { player: resolvedPlayer, landedPlatform };
+}
+
+// Check if player fell off bottom of screen
+export function checkDeath(
+  player: Player,
+  cameraY: number,
+  config: GameConfig = DEFAULT_CONFIG
+): boolean {
+  // Player died if they fell below the camera view
+  return player.position.y > cameraY + config.gameHeight + 50;
+}
+
+// Update camera position to follow player
+export function updateCamera(
+  currentCameraY: number,
+  playerY: number,
+  config: GameConfig = DEFAULT_CONFIG
+): number {
+  // Camera follows player upward, never goes back down
+  const targetY = playerY - config.gameHeight * 0.4;
+  
+  if (targetY < currentCameraY) {
+    // Smooth camera follow
+    return currentCameraY + (targetY - currentCameraY) * 0.1;
+  }
+  
+  return currentCameraY;
+}
+
+// Calculate distance between two points
+export function distance(a: Vector2D, b: Vector2D): number {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
