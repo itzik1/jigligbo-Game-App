@@ -1,0 +1,102 @@
+// Game Types for Jigligbo: One More Jump
+
+export interface Vector2D {
+  x: number;
+  y: number;
+}
+
+export interface GameConfig {
+  gravity: number;
+  jumpForce: number;
+  maxFallSpeed: number;
+  platformWidth: number;
+  platformHeight: number;
+  playerSize: number;
+  gameWidth: number;
+  gameHeight: number;
+}
+
+export interface Player {
+  position: Vector2D;
+  velocity: Vector2D;
+  isJumping: boolean;
+  isGrounded: boolean;
+  isDead: boolean;
+  jumpCount: number;
+}
+
+export interface Platform {
+  id: string;
+  position: Vector2D;
+  width: number;
+  height: number;
+  type: PlatformType;
+  isVisible: boolean;
+  isSolid: boolean;
+  hasBeenTouched: boolean;
+}
+
+export type PlatformType = 
+  | 'normal'      // Regular platform
+  | 'fragile'     // Breaks after landing
+  | 'fake'        // Looks real but isn't solid
+  | 'invisible'   // Solid but invisible until touched
+  | 'moving'      // Moves horizontally
+  | 'bouncy';     // Extra bounce
+
+export interface GameState {
+  player: Player;
+  platforms: Platform[];
+  score: number;
+  highScore: number;
+  cameraY: number;
+  isPlaying: boolean;
+  isPaused: boolean;
+  isDead: boolean;
+  deathCount: number;
+  currentRules: ActiveRule[];
+  ruleChangeCounter: number;
+}
+
+// The secret sauce - rules that change without warning
+export type RuleType = 
+  | 'normal'           // No modifications
+  | 'gravity_flip'     // Gravity reversed
+  | 'gravity_heavy'    // Extra strong gravity
+  | 'gravity_light'    // Floaty jumps
+  | 'jump_delay'       // Jump happens with delay
+  | 'double_jump'      // Can jump mid-air
+  | 'no_control'       // Can't control mid-air
+  | 'slippery'         // Momentum carries
+  | 'sticky'           // Hard to move
+  | 'reverse_controls' // Left is right
+  | 'random_jump'      // Jump height varies
+  | 'invisible_player' // Player flickers
+  | 'platform_lies'    // Fake platforms appear
+  | 'breaking_world';  // Platforms break on touch
+
+export interface ActiveRule {
+  type: RuleType;
+  duration: number;      // How many jumps this lasts
+  remaining: number;     // Jumps left
+  intensity: number;     // 0-1 strength modifier
+}
+
+export interface RuleConfig {
+  type: RuleType;
+  weight: number;        // Probability weight
+  minScore: number;      // Minimum score to unlock
+  maxDuration: number;   // Max jumps this can last
+  minDuration: number;   // Min jumps
+  canStack: boolean;     // Can combine with other rules
+}
+
+export type GamePhase = 'title' | 'playing' | 'dead' | 'paused';
+
+export interface GameStats {
+  totalJumps: number;
+  totalDeaths: number;
+  maxHeight: number;
+  gamesPlayed: number;
+  rulesEncountered: Set<RuleType>;
+}
