@@ -1,0 +1,291 @@
+// Game State Management with React Hook
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { GameState, Player, Platform, GamePhase, ActiveRule } from './types';
+import { DEFAULT_CONFIG, STORAGE_KEYS } from './constants';
+import { 
+  updatePlayerPhysics, 
+  applyJump, 
+  resolveCollisions, 
+  checkDeath, 
+  updateCamera 
+} from './physics';
+import { 
+  modifyGravity, 
+  modifyJumpForce, 
+  shouldDelayJump, 
+  canDoubleJump,
+  modifyMovement,
+  tickRules,
+  maybeAddRule,
+  getNextRuleChangeInterval,
+  isPlayerVisible
+} from './rules';
+import { 
+  generateInitialPlatforms, 
+  generateNewPlatforms, 
+  cullPlatforms,
+  touchPlatform,
+  breakPlatform
+} from './platforms';
+
+const INITIAL_PLAYER: Player = {
+  position: { 
+    x: DEFAULT_CONFIG.gameWidth / 2, 
+    y: DEFAULT_CONFIG.gameHeight - 100 - DEFAULT_CONFIG.playerSize / 2 
+  },
+  velocity: { x: 0, y: 0 },
+  isJumping: false,
+  isGrounded: true,
+  isDead: false,
+  jumpCount: 0,
+};
+
+const INITIAL_STATE: GameState = {
+  player: INITIAL_PLAYER,
+  platforms: [],
+  score: 0,
+  highScore: 0,
+  cameraY: 0,
+  isPlaying: false,
+  isPaused: false,
+  isDead: false,
+  deathCount: 0,
+  currentRules: [],
+  ruleChangeCounter: 5,
+};
+
+export function useGameState() {
+  const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
+  const [phase, setPhase] = useState<GamePhase>('title');
+  const [screenShake, setScreenShake] = useState(false);
+  const [frameCount, setFrameCount] = useState(0);
+  
+  const gameLoopRef = useRef<number | null>(null);
+  const inputRef = useRef<{ left: boolean; right: boolean; jump: boolean }>({
+    left: false,
+    right: false,
+    jump: false,
+  });
+  const jumpPendingRef = useRef(false);
+  const jumpDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Load high score from storage
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.highScore);
+    if (saved) {
+      setGameState(prev => ({ ...prev, highScore: parseInt(saved, 10) }));
+    }
+  }, []);
+  
+  // Save high score
+  const saveHighScore = useCallback((score: number) => {
+    localStorage.setItem(STORAGE_KEYS.highScore, score.toString());
+  }, []);
+  
+  // Start new game
+  const startGame = useCallback(() => {
+    const platforms = generateInitialPlatforms();
+    
+    setGameState(prev => ({
+      ...INITIAL_STATE,
+      highScore: prev.highScore,
+      deathCount: prev.deathCount,
+      platforms,
+      isPlaying: true,
+    }));
+    setPhase('playing');
+  }, []);
+  
+  // Handle player death
+  const handleDeath = useCallback(() => {
+    setScreenShake(true);
+    setTimeout(() => setScreenShake(false), 400);
+    
+    setGameState(prev => {
+      const newHighScore = Math.max(prev.score, prev.highScore);
+      if (newHighScore > prev.highScore) {
+        saveHighScore(newHighScore);
+      }
+      
+      return {
+        ...prev,
+        isDead: true,
+        isPlaying: false,
+        deathCount: prev.deathCount + 1,
+        highScore: newHighScore,
+        player: { ...prev.player, isDead: true },
+      };
+    });
+    
+    setPhase('dead');
+  }, [saveHighScore]);
+  
+  // Handle jump input
+  const handleJump = useCallback(() => {
+    if (phase !== 'playing') return;
+    
+    setGameState(prev => {
+      const { player, currentRules } = prev;
+      
+      // Check if can jump
+      const canJump = player.isGrounded || canDoubleJump(currentRules, player.jumpCount);
+      if (!canJump) return prev;
+      
+      // Check for jump delay
+      const delay = shouldDelayJump(currentRules);
+      if (delay > 0 && !jumpPendingRef.current) {
+        jumpPendingRef.current = true;
+        jumpDelayTimeoutRef.current = setTimeout(() => {
+          setGameState(p => {
+            const jumpForce = modifyJumpForce(DEFAULT_CONFIG.jumpForce, p.currentRules);
+            return {
+              ...p,
+              player: applyJump(p.player, jumpForce),
+              ruleChangeCounter: p.ruleChangeCounter - 1,
+            };
+          });
+          jumpPendingRef.current = false;
+        }, delay);
+        return prev;
+      }
+      
+      const jumpForce = modifyJumpForce(DEFAULT_CONFIG.jumpForce, currentRules);
+      
+      return {
+        ...prev,
+        player: applyJump(player, jumpForce),
+        ruleChangeCounter: prev.ruleChangeCounter - 1,
+      };
+    });
+  }, [phase]);
+  
+  // Handle movement input
+  const handleMove = useCallback((direction: number) => {
+    inputRef.current.left = direction < 0;
+    inputRef.current.right = direction > 0;
+  }, []);
+  
+  // Main game loop
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    
+    const gameLoop = () => {
+      setFrameCount(f => f + 1);
+      
+      setGameState(prev => {
+        if (!prev.isPlaying || prev.isDead) return prev;
+        
+        let { player, platforms, cameraY, score, currentRules, ruleChangeCounter } = prev;
+        
+        // Store previous position for collision detection
+        const previousY = player.position.y;
+        
+        // Apply gravity with rule modifications
+        const gravity = modifyGravity(DEFAULT_CONFIG.gravity, currentRules);
+        player = updatePlayerPhysics(player, gravity);
+        
+        // Apply horizontal movement
+        const moveInput = (inputRef.current.right ? 1 : 0) - (inputRef.current.left ? 1 : 0);
+        const movement = modifyMovement(moveInput * 0.8, player.velocity, currentRules);
+        player = {
+          ...player,
+          velocity: { ...player.velocity, x: player.velocity.x + movement },
+        };
+        
+        // Check collisions (pass previous Y for proper landing detection)
+        const collision = resolveCollisions(player, platforms, previousY);
+        player = collision.player;
+        
+        // Handle landing on platform
+        if (collision.landedPlatform) {
+          const platform = collision.landedPlatform;
+          
+          // Update platform state
+          platforms = platforms.map(p => {
+            if (p.id === platform.id) {
+              let updated = touchPlatform(p);
+              if (p.type === 'fragile') {
+                setTimeout(() => {
+                  setGameState(s => ({
+                    ...s,
+                    platforms: s.platforms.map(plat => 
+                      plat.id === platform.id ? breakPlatform(plat) : plat
+                    ),
+                  }));
+                }, 200);
+              }
+              return updated;
+            }
+            return p;
+          });
+          
+          // Bouncy platform
+          if (platform.type === 'bouncy') {
+            const bounceForce = DEFAULT_CONFIG.jumpForce * 1.5;
+            player = { ...player, velocity: { ...player.velocity, y: bounceForce } };
+          }
+        }
+        
+        // Update camera
+        cameraY = updateCamera(cameraY, player.position.y);
+        
+        // Update score based on height climbed
+        const newScore = Math.max(score, Math.floor(-cameraY / 50));
+        
+        // Generate new platforms
+        platforms = generateNewPlatforms(platforms, cameraY, currentRules);
+        platforms = cullPlatforms(platforms, cameraY);
+        
+        // Check for rule changes
+        if (ruleChangeCounter <= 0) {
+          currentRules = tickRules(currentRules);
+          currentRules = maybeAddRule({ ...prev, currentRules, score: newScore, ruleChangeCounter: 0 });
+          ruleChangeCounter = getNextRuleChangeInterval();
+        }
+        
+        // Check death
+        if (checkDeath(player, cameraY)) {
+          handleDeath();
+          return prev;
+        }
+        
+        return {
+          ...prev,
+          player,
+          platforms,
+          cameraY,
+          score: newScore,
+          currentRules,
+          ruleChangeCounter,
+        };
+      });
+      
+      gameLoopRef.current = requestAnimationFrame(gameLoop);
+    };
+    
+    gameLoopRef.current = requestAnimationFrame(gameLoop);
+    
+    return () => {
+      if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current);
+      }
+      if (jumpDelayTimeoutRef.current) {
+        clearTimeout(jumpDelayTimeoutRef.current);
+      }
+    };
+  }, [phase, handleDeath]);
+  
+  // Check player visibility (for invisible_player rule)
+  const playerVisible = isPlayerVisible(gameState.currentRules, frameCount);
+  
+  return {
+    gameState,
+    phase,
+    screenShake,
+    playerVisible,
+    startGame,
+    handleJump,
+    handleMove,
+  };
+}
