@@ -1,0 +1,148 @@
+// Platform Generator for Jigligbo
+// Creates platforms procedurally with rule-based modifications
+
+import { Platform, PlatformType, ActiveRule } from './types';
+import { DEFAULT_CONFIG, PLATFORM_SPAWN } from './constants';
+import { shouldCreateFakePlatform, shouldPlatformBreak, isRuleActive } from './rules';
+
+let platformIdCounter = 0;
+
+// Generate a unique platform ID
+function generatePlatformId(): string {
+  return `platform_${++platformIdCounter}`;
+}
+
+// Create a single platform
+export function createPlatform(
+  x: number,
+  y: number,
+  type: PlatformType = 'normal',
+  width: number = DEFAULT_CONFIG.platformWidth
+): Platform {
+  return {
+    id: generatePlatformId(),
+    position: { x, y },
+    width,
+    height: DEFAULT_CONFIG.platformHeight,
+    type,
+    isVisible: type !== 'invisible',
+    isSolid: type !== 'fake',
+    hasBeenTouched: false,
+  };
+}
+
+// Generate initial platforms for game start
+export function generateInitialPlatforms(): Platform[] {
+  const platforms: Platform[] = [];
+  
+  // Starting platform - always safe and centered
+  platforms.push(createPlatform(
+    DEFAULT_CONFIG.gameWidth / 2 - DEFAULT_CONFIG.platformWidth / 2,
+    DEFAULT_CONFIG.gameHeight - 100,
+    'normal',
+    DEFAULT_CONFIG.platformWidth * 1.5
+  ));
+  
+  // Generate platforms going upward
+  let currentY = DEFAULT_CONFIG.gameHeight - 100;
+  
+  for (let i = 0; i < PLATFORM_SPAWN.initialPlatforms; i++) {
+    currentY -= PLATFORM_SPAWN.minGapY + Math.random() * (PLATFORM_SPAWN.maxGapY - PLATFORM_SPAWN.minGapY);
+    
+    const x = PLATFORM_SPAWN.edgeMargin + 
+      Math.random() * (DEFAULT_CONFIG.gameWidth - DEFAULT_CONFIG.platformWidth - PLATFORM_SPAWN.edgeMargin * 2);
+    
+    platforms.push(createPlatform(x, currentY, 'normal'));
+  }
+  
+  return platforms;
+}
+
+// Generate new platforms as player climbs
+export function generateNewPlatforms(
+  existingPlatforms: Platform[],
+  cameraY: number,
+  rules: ActiveRule[]
+): Platform[] {
+  const platforms = [...existingPlatforms];
+  
+  // Find the highest platform
+  const highestY = Math.min(...platforms.map(p => p.position.y));
+  
+  // Generate platforms above camera view
+  let currentY = highestY;
+  const targetY = cameraY - DEFAULT_CONFIG.gameHeight;
+  
+  while (currentY > targetY) {
+    currentY -= PLATFORM_SPAWN.minGapY + Math.random() * (PLATFORM_SPAWN.maxGapY - PLATFORM_SPAWN.minGapY);
+    
+    const x = PLATFORM_SPAWN.edgeMargin + 
+      Math.random() * (DEFAULT_CONFIG.gameWidth - DEFAULT_CONFIG.platformWidth - PLATFORM_SPAWN.edgeMargin * 2);
+    
+    // Determine platform type based on active rules
+    let type: PlatformType = 'normal';
+    
+    if (shouldCreateFakePlatform(rules)) {
+      type = 'fake';
+    } else if (shouldPlatformBreak(rules) && Math.random() < 0.3) {
+      type = 'fragile';
+    } else if (Math.random() < 0.1) {
+      // Random special platforms
+      const specials: PlatformType[] = ['bouncy', 'invisible'];
+      type = specials[Math.floor(Math.random() * specials.length)];
+    }
+    
+    platforms.push(createPlatform(x, currentY, type));
+  }
+  
+  return platforms;
+}
+
+// Remove platforms that are far below camera
+export function cullPlatforms(
+  platforms: Platform[],
+  cameraY: number
+): Platform[] {
+  const cullY = cameraY + DEFAULT_CONFIG.gameHeight + 200;
+  return platforms.filter(p => p.position.y < cullY);
+}
+
+// Handle platform touch (for fragile, invisible platforms)
+export function touchPlatform(platform: Platform): Platform {
+  const touched = { ...platform, hasBeenTouched: true };
+  
+  if (platform.type === 'invisible') {
+    touched.isVisible = true;
+  }
+  
+  return touched;
+}
+
+// Break a fragile platform
+export function breakPlatform(platform: Platform): Platform {
+  return {
+    ...platform,
+    isSolid: false,
+    type: 'fake', // Visually show it's broken
+  };
+}
+
+// Get platform color based on type
+export function getPlatformColor(platform: Platform): string {
+  if (!platform.isVisible) return 'transparent';
+  
+  switch (platform.type) {
+    case 'fake':
+      return 'hsl(var(--game-danger) / 0.3)';
+    case 'fragile':
+      return 'hsl(var(--game-warning))';
+    case 'invisible':
+      return platform.hasBeenTouched ? 'hsl(var(--game-neon) / 0.5)' : 'transparent';
+    case 'bouncy':
+      return 'hsl(var(--game-success))';
+    case 'moving':
+      return 'hsl(var(--game-neon-glow))';
+    default:
+      return 'hsl(var(--game-platform))';
+  }
+}
