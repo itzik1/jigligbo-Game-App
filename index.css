@@ -1,0 +1,268 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Jigligbo: One More Jump - Design System
+   A dark, minimal, neon-accented game aesthetic
+   All colors in HSL */
+
+@layer base {
+  :root {
+    /* Core game colors - deep void with electric cyan */
+    --background: 240 10% 4%;
+    --foreground: 180 100% 95%;
+
+    --card: 240 10% 8%;
+    --card-foreground: 180 100% 95%;
+
+    --popover: 240 10% 6%;
+    --popover-foreground: 180 100% 95%;
+
+    /* Neon cyan - the signature accent */
+    --primary: 180 100% 50%;
+    --primary-foreground: 240 10% 4%;
+
+    /* Muted cyan for secondary elements */
+    --secondary: 180 40% 15%;
+    --secondary-foreground: 180 100% 80%;
+
+    --muted: 240 10% 12%;
+    --muted-foreground: 180 20% 50%;
+
+    --accent: 180 100% 50%;
+    --accent-foreground: 240 10% 4%;
+
+    /* Danger red for death/fail states */
+    --destructive: 0 90% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 180 30% 20%;
+    --input: 180 30% 20%;
+    --ring: 180 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Game-specific tokens */
+    --game-void: 240 15% 3%;
+    --game-neon: 180 100% 50%;
+    --game-neon-glow: 180 100% 60%;
+    --game-neon-dim: 180 60% 30%;
+    --game-danger: 0 90% 55%;
+    --game-warning: 45 100% 50%;
+    --game-success: 150 80% 45%;
+    --game-platform: 180 40% 25%;
+    --game-platform-glow: 180 60% 35%;
+
+    /* Jelly character colors */
+    --jelly-body: 180 100% 55%;
+    --jelly-glow: 180 100% 70%;
+    --jelly-shadow: 180 80% 25%;
+
+    /* Gradients */
+    --gradient-void: linear-gradient(180deg, hsl(240 15% 3%) 0%, hsl(240 20% 8%) 100%);
+    --gradient-neon: linear-gradient(135deg, hsl(180 100% 50%) 0%, hsl(200 100% 60%) 100%);
+    --gradient-danger: linear-gradient(135deg, hsl(0 90% 55%) 0%, hsl(350 90% 45%) 100%);
+
+    /* Shadows and glows */
+    --shadow-neon: 0 0 20px hsl(180 100% 50% / 0.5), 0 0 40px hsl(180 100% 50% / 0.3);
+    --shadow-neon-strong: 0 0 30px hsl(180 100% 50% / 0.7), 0 0 60px hsl(180 100% 50% / 0.4);
+    --shadow-danger: 0 0 20px hsl(0 90% 55% / 0.5);
+    --shadow-jelly: 0 4px 15px hsl(180 80% 30% / 0.6);
+
+    /* Animation timings */
+    --timing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --timing-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Sidebar defaults (keeping for shadcn compatibility) */
+    --sidebar-background: 240 10% 6%;
+    --sidebar-foreground: 180 100% 90%;
+    --sidebar-primary: 180 100% 50%;
+    --sidebar-primary-foreground: 240 10% 4%;
+    --sidebar-accent: 180 40% 15%;
+    --sidebar-accent-foreground: 180 100% 80%;
+    --sidebar-border: 180 30% 20%;
+    --sidebar-ring: 180 100% 50%;
+  }
+
+  .dark {
+    /* Same as root - game is always dark mode */
+    --background: 240 10% 4%;
+    --foreground: 180 100% 95%;
+    --card: 240 10% 8%;
+    --card-foreground: 180 100% 95%;
+    --popover: 240 10% 6%;
+    --popover-foreground: 180 100% 95%;
+    --primary: 180 100% 50%;
+    --primary-foreground: 240 10% 4%;
+    --secondary: 180 40% 15%;
+    --secondary-foreground: 180 100% 80%;
+    --muted: 240 10% 12%;
+    --muted-foreground: 180 20% 50%;
+    --accent: 180 100% 50%;
+    --accent-foreground: 240 10% 4%;
+    --destructive: 0 90% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 180 30% 20%;
+    --input: 180 30% 20%;
+    --ring: 180 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Prevent text selection during gameplay */
+  .game-container {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  /* Neon text glow effect */
+  .text-neon {
+    color: hsl(var(--game-neon));
+    text-shadow: 
+      0 0 10px hsl(var(--game-neon) / 0.8),
+      0 0 20px hsl(var(--game-neon) / 0.6),
+      0 0 30px hsl(var(--game-neon) / 0.4);
+  }
+
+  /* Pulsing neon effect */
+  .neon-pulse {
+    animation: neonPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes neonPulse {
+    0%, 100% {
+      filter: brightness(1);
+      text-shadow: 
+        0 0 10px hsl(var(--game-neon) / 0.8),
+        0 0 20px hsl(var(--game-neon) / 0.6);
+    }
+    50% {
+      filter: brightness(1.2);
+      text-shadow: 
+        0 0 15px hsl(var(--game-neon) / 1),
+        0 0 30px hsl(var(--game-neon) / 0.8),
+        0 0 45px hsl(var(--game-neon) / 0.5);
+    }
+  }
+
+  /* Jelly bounce animation */
+  .jelly-bounce {
+    animation: jellyBounce 0.5s var(--timing-bounce);
+  }
+
+  @keyframes jellyBounce {
+    0% { transform: scaleY(0.6) scaleX(1.2); }
+    40% { transform: scaleY(1.2) scaleX(0.9); }
+    60% { transform: scaleY(0.95) scaleX(1.05); }
+    80% { transform: scaleY(1.02) scaleX(0.98); }
+    100% { transform: scaleY(1) scaleX(1); }
+  }
+
+  /* Landing squish */
+  .jelly-squish {
+    animation: jellySquish 0.3s var(--timing-bounce);
+  }
+
+  @keyframes jellySquish {
+    0% { transform: scaleY(1) scaleX(1); }
+    50% { transform: scaleY(0.7) scaleX(1.3); }
+    100% { transform: scaleY(1) scaleX(1); }
+  }
+
+  /* Screen shake on death */
+  .screen-shake {
+    animation: screenShake 0.4s ease-out;
+  }
+
+  @keyframes screenShake {
+    0%, 100% { transform: translateX(0); }
+    10% { transform: translateX(-8px) rotate(-1deg); }
+    20% { transform: translateX(8px) rotate(1deg); }
+    30% { transform: translateX(-6px) rotate(-0.5deg); }
+    40% { transform: translateX(6px) rotate(0.5deg); }
+    50% { transform: translateX(-4px); }
+    60% { transform: translateX(4px); }
+    70% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+  }
+
+  /* Death flash */
+  .death-flash {
+    animation: deathFlash 0.2s ease-out;
+  }
+
+  @keyframes deathFlash {
+    0% { 
+      background-color: hsl(var(--game-danger) / 0.3);
+    }
+    100% { 
+      background-color: transparent;
+    }
+  }
+
+  /* Platform glow */
+  .platform-glow {
+    box-shadow: 
+      0 0 8px hsl(var(--game-neon) / 0.4),
+      0 0 16px hsl(var(--game-neon) / 0.2);
+  }
+
+  /* Fade in up for UI */
+  .fade-in-up {
+    animation: fadeInUp 0.4s var(--timing-smooth);
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Game button styles */
+  .game-button {
+    @apply relative overflow-hidden font-bold tracking-wide uppercase;
+    background: hsl(var(--game-neon));
+    color: hsl(var(--game-void));
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--shadow-neon);
+    transition: all 0.2s var(--timing-smooth);
+  }
+
+  .game-button:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-neon-strong);
+  }
+
+  .game-button:active {
+    transform: scale(0.98);
+  }
+
+  /* Subtle floating animation */
+  .float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+}
