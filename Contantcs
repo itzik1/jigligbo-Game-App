@@ -1,0 +1,90 @@
+// Game Constants and Default Configuration
+
+import { GameConfig, RuleConfig, RuleType } from './types';
+
+export const DEFAULT_CONFIG: GameConfig = {
+  gravity: 0.6,
+  jumpForce: -14,
+  maxFallSpeed: 18,
+  platformWidth: 80,
+  platformHeight: 12,
+  playerSize: 24,
+  gameWidth: 375,  // Mobile-first
+  gameHeight: 667,
+};
+
+// Rule configurations - defines when and how rules can appear
+export const RULE_CONFIGS: RuleConfig[] = [
+  { type: 'normal', weight: 0, minScore: 0, minDuration: 1, maxDuration: 1, canStack: false },
+  { type: 'gravity_heavy', weight: 15, minScore: 3, minDuration: 3, maxDuration: 8, canStack: true },
+  { type: 'gravity_light', weight: 15, minScore: 5, minDuration: 3, maxDuration: 10, canStack: true },
+  { type: 'gravity_flip', weight: 8, minScore: 15, minDuration: 2, maxDuration: 5, canStack: false },
+  { type: 'jump_delay', weight: 12, minScore: 8, minDuration: 3, maxDuration: 6, canStack: true },
+  { type: 'double_jump', weight: 10, minScore: 10, minDuration: 5, maxDuration: 12, canStack: true },
+  { type: 'no_control', weight: 8, minScore: 12, minDuration: 2, maxDuration: 4, canStack: false },
+  { type: 'slippery', weight: 12, minScore: 6, minDuration: 4, maxDuration: 8, canStack: true },
+  { type: 'sticky', weight: 10, minScore: 7, minDuration: 3, maxDuration: 6, canStack: true },
+  { type: 'reverse_controls', weight: 8, minScore: 20, minDuration: 3, maxDuration: 5, canStack: false },
+  { type: 'random_jump', weight: 10, minScore: 4, minDuration: 4, maxDuration: 10, canStack: true },
+  { type: 'invisible_player', weight: 6, minScore: 25, minDuration: 2, maxDuration: 4, canStack: true },
+  { type: 'platform_lies', weight: 10, minScore: 10, minDuration: 5, maxDuration: 10, canStack: true },
+  { type: 'breaking_world', weight: 12, minScore: 8, minDuration: 4, maxDuration: 8, canStack: true },
+];
+
+// How often rules change (in jumps)
+export const RULE_CHANGE_INTERVAL = {
+  min: 5,
+  max: 15,
+};
+
+// Platform spawn settings
+export const PLATFORM_SPAWN = {
+  minGapY: 50,
+  maxGapY: 120,
+  minGapX: 30,
+  edgeMargin: 40,
+  initialPlatforms: 10,
+  spawnAhead: 5,
+};
+
+// Visual effects
+export const EFFECTS = {
+  screenShakeDuration: 400,
+  deathFlashDuration: 200,
+  jellySquishDuration: 300,
+};
+
+// Score multipliers
+export const SCORING = {
+  basePointsPerPlatform: 1,
+  heightBonus: 0.1,
+  streakMultiplier: 0.5,
+};
+
+// Local storage keys
+export const STORAGE_KEYS = {
+  highScore: 'jigligbo_high_score',
+  stats: 'jigligbo_stats',
+  settings: 'jigligbo_settings',
+};
+
+// Get available rules based on current score
+export function getAvailableRules(score: number): RuleConfig[] {
+  return RULE_CONFIGS.filter(rule => rule.minScore <= score && rule.weight > 0);
+}
+
+// Pick a random rule based on weights
+export function pickRandomRule(score: number): RuleConfig | null {
+  const available = getAvailableRules(score);
+  if (available.length === 0) return null;
+  
+  const totalWeight = available.reduce((sum, rule) => sum + rule.weight, 0);
+  let random = Math.random() * totalWeight;
+  
+  for (const rule of available) {
+    random -= rule.weight;
+    if (random <= 0) return rule;
+  }
+  
+  return available[available.length - 1];
+}
