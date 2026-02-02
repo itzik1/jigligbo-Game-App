@@ -1,0 +1,166 @@
+// Rule System - The evil heart of Jigligbo
+// Rules modify game behavior secretly
+
+import { ActiveRule, GameState, Player, RuleType, Vector2D } from './types';
+import { DEFAULT_CONFIG, pickRandomRule, RULE_CHANGE_INTERVAL, RULE_CONFIGS } from './constants';
+
+// Create a new active rule
+export function createRule(type: RuleType, duration: number, intensity: number = 1): ActiveRule {
+  return {
+    type,
+    duration,
+    remaining: duration,
+    intensity,
+  };
+}
+
+// Check if a rule type is currently active
+export function isRuleActive(rules: ActiveRule[], type: RuleType): boolean {
+  return rules.some(r => r.type === type && r.remaining > 0);
+}
+
+// Get the intensity of an active rule (0 if not active)
+export function getRuleIntensity(rules: ActiveRule[], type: RuleType): number {
+  const rule = rules.find(r => r.type === type && r.remaining > 0);
+  return rule ? rule.intensity : 0;
+}
+
+// Decrement rule counters after a jump
+export function tickRules(rules: ActiveRule[]): ActiveRule[] {
+  return rules
+    .map(rule => ({ ...rule, remaining: rule.remaining - 1 }))
+    .filter(rule => rule.remaining > 0);
+}
+
+// Maybe add a new rule based on score and randomness
+export function maybeAddRule(state: GameState): ActiveRule[] {
+  const { currentRules, ruleChangeCounter, score } = state;
+  
+  // Check if it's time to potentially add a rule
+  if (ruleChangeCounter > 0) return currentRules;
+  
+  // Pick a random rule based on current score
+  const ruleConfig = pickRandomRule(score);
+  if (!ruleConfig) return currentRules;
+  
+  // Check if rule can stack with existing rules
+  if (!ruleConfig.canStack && currentRules.length > 0) {
+    // Replace existing rules instead
+    const duration = Math.floor(
+      Math.random() * (ruleConfig.maxDuration - ruleConfig.minDuration + 1) + ruleConfig.minDuration
+    );
+    return [createRule(ruleConfig.type, duration, 0.5 + Math.random() * 0.5)];
+  }
+  
+  // Add new rule
+  const duration = Math.floor(
+    Math.random() * (ruleConfig.maxDuration - ruleConfig.minDuration + 1) + ruleConfig.minDuration
+  );
+  const newRule = createRule(ruleConfig.type, duration, 0.5 + Math.random() * 0.5);
+  
+  return [...currentRules, newRule];
+}
+
+// Get next rule change interval
+export function getNextRuleChangeInterval(): number {
+  return Math.floor(
+    Math.random() * (RULE_CHANGE_INTERVAL.max - RULE_CHANGE_INTERVAL.min + 1) + RULE_CHANGE_INTERVAL.min
+  );
+}
+
+// Apply gravity modifications
+export function modifyGravity(baseGravity: number, rules: ActiveRule[]): number {
+  let gravity = baseGravity;
+  
+  if (isRuleActive(rules, 'gravity_heavy')) {
+    gravity *= 1.5 + getRuleIntensity(rules, 'gravity_heavy') * 0.5;
+  }
+  
+  if (isRuleActive(rules, 'gravity_light')) {
+    gravity *= 0.3 + (1 - getRuleIntensity(rules, 'gravity_light')) * 0.3;
+  }
+  
+  if (isRuleActive(rules, 'gravity_flip')) {
+    gravity *= -1;
+  }
+  
+  return gravity;
+}
+
+// Apply jump force modifications
+export function modifyJumpForce(baseForce: number, rules: ActiveRule[]): number {
+  let force = baseForce;
+  
+  if (isRuleActive(rules, 'random_jump')) {
+    const variance = getRuleIntensity(rules, 'random_jump') * 0.5;
+    force *= 0.7 + Math.random() * (0.6 + variance);
+  }
+  
+  if (isRuleActive(rules, 'gravity_flip')) {
+    force *= -1;
+  }
+  
+  return force;
+}
+
+// Check if jump should be delayed
+export function shouldDelayJump(rules: ActiveRule[]): number {
+  if (isRuleActive(rules, 'jump_delay')) {
+    return 100 + getRuleIntensity(rules, 'jump_delay') * 150; // 100-250ms delay
+  }
+  return 0;
+}
+
+// Check if double jump is allowed
+export function canDoubleJump(rules: ActiveRule[], jumpCount: number): boolean {
+  return isRuleActive(rules, 'double_jump') && jumpCount < 2;
+}
+
+// Modify horizontal movement
+export function modifyMovement(input: number, velocity: Vector2D, rules: ActiveRule[]): number {
+  let movement = input;
+  
+  if (isRuleActive(rules, 'reverse_controls')) {
+    movement *= -1;
+  }
+  
+  if (isRuleActive(rules, 'no_control')) {
+    movement = 0;
+  }
+  
+  if (isRuleActive(rules, 'slippery')) {
+    // Add momentum, less responsive
+    const intensity = getRuleIntensity(rules, 'slippery');
+    movement = velocity.x * (0.95 + intensity * 0.04) + movement * (0.1 - intensity * 0.05);
+  }
+  
+  if (isRuleActive(rules, 'sticky')) {
+    // Reduce movement speed
+    const intensity = getRuleIntensity(rules, 'sticky');
+    movement *= 0.3 + (1 - intensity) * 0.3;
+  }
+  
+  return movement;
+}
+
+// Check if player should be visible
+export function isPlayerVisible(rules: ActiveRule[], frameCount: number): boolean {
+  if (!isRuleActive(rules, 'invisible_player')) return true;
+  
+  // Flicker effect
+  const intensity = getRuleIntensity(rules, 'invisible_player');
+  const flickerSpeed = 5 + intensity * 10;
+  return Math.sin(frameCount / flickerSpeed) > 0;
+}
+
+// Determine platform type based on rules
+export function shouldCreateFakePlatform(rules: ActiveRule[]): boolean {
+  if (!isRuleActive(rules, 'platform_lies')) return false;
+  return Math.random() < getRuleIntensity(rules, 'platform_lies') * 0.3;
+}
+
+// Check if platforms should break on touch
+export function shouldPlatformBreak(rules: ActiveRule[]): boolean {
+  if (!isRuleActive(rules, 'breaking_world')) return false;
+  return Math.random() < getRuleIntensity(rules, 'breaking_world') * 0.4;
+}
